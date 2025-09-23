@@ -591,12 +591,12 @@ int picoquic_store_text_addr(struct sockaddr_storage* stored_addr, const char* i
     if (inet_pton(AF_INET, ip_address_text, &ipv4_addr->sin_addr) == 1) {
         /* Valid IPv4 address */
         ipv4_addr->sin_family = AF_INET;
-        ipv4_addr->sin_port = (unsigned short)port;
+        ipv4_addr->sin_port = htons(port);
     }
     else if (inet_pton(AF_INET6, ip_address_text, &ipv6_addr->sin6_addr) == 1) {
         /* Valid IPv6 address */
         ipv6_addr->sin6_family = AF_INET6;
-        ipv6_addr->sin6_port = port;
+        ipv6_addr->sin6_port = htons(port);
     }
     else {
         ret = -1;

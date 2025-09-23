@@ -631,8 +631,7 @@ int picoquic_packet_loop_select(picoquic_socket_ctx_t* s_ctx,
         bytes_recv = -1;
         DBG_PRINTF("Error: select returns %d\n", ret_select);
     } else if (ret_select > 0) {
-        /* Check if the 'wake up' pipe is full. If it is, read the data on it,
-         * set the is_wake_up_event flag, and ignore the other file descriptors. */
+        /* Check if the 'wake up' pipe is full. If it is, read the data on it */
         if (thread_ctx->wake_up_defined && FD_ISSET(thread_ctx->wake_up_pipe_fd[0], &readfds)) {
             /* Something was written on the "wakeup" pipe. Read it. */
             uint8_t eventbuf[8];
@@ -645,30 +644,28 @@ int picoquic_packet_loop_select(picoquic_socket_ctx_t* s_ctx,
                 *is_wake_up_event = 1;
             }
         }
-        else
-        {
-            for (int i = 0; i < nb_sockets; i++) {
-                if (FD_ISSET(s_ctx[i].fd, &readfds)) {
-                    *socket_rank = i;
-                    bytes_recv = picoquic_recvmsg(s_ctx[i].fd, addr_from,
-                        addr_dest, dest_if, received_ecn,
-                        buffer, buffer_max);
+        /* Always check the sockets for readiness, even if wake event fired */
+        for (int i = 0; i < nb_sockets; i++) {
+            if (FD_ISSET(s_ctx[i].fd, &readfds)) {
+                *socket_rank = i;
+                bytes_recv = picoquic_recvmsg(s_ctx[i].fd, addr_from,
+                    addr_dest, dest_if, received_ecn,
+                    buffer, buffer_max);
 
-                    if (bytes_recv <= 0) {
-                        DBG_PRINTF("Could not receive packet on UDP socket[%d]= %d!\n",
-                            i, (int)s_ctx[i].fd);
-                        break;
+                if (bytes_recv <= 0) {
+                    DBG_PRINTF("Could not receive packet on UDP socket[%d]= %d!\n",
+                        i, (int)s_ctx[i].fd);
+                    break;
+                }
+                else {
+                    /* Document incoming port */
+                    if (addr_dest->ss_family == AF_INET6) {
+                        ((struct sockaddr_in6*)addr_dest)->sin6_port = s_ctx[i].n_port;
                     }
-                    else {
-                        /* Document incoming port */
-                        if (addr_dest->ss_family == AF_INET6) {
-                            ((struct sockaddr_in6*)addr_dest)->sin6_port = s_ctx[i].n_port;
-                        }
-                        else if (addr_dest->ss_family == AF_INET) {
-                            ((struct sockaddr_in*)addr_dest)->sin_port = s_ctx[i].n_port;
-                        }
-                        break;
+                    else if (addr_dest->ss_family == AF_INET) {
+                        ((struct sockaddr_in*)addr_dest)->sin_port = s_ctx[i].n_port;
                     }
+                    break;
                 }
             }
         }
