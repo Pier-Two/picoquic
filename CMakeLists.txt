@@ -264,8 +264,21 @@ if(PICOQUIC_FETCH_PTLS)
     include(FetchContent)
     FetchContent_Declare(picotls
         GIT_REPOSITORY      https://github.com/h2o/picotls.git
-        GIT_TAG             f350eab60742138ac62b42ee444adf04c7898b0d)
+        GIT_TAG             f350eab60742138ac62b42ee444adf04c7898b0d
+        PATCH_COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_SOURCE_DIR}/cmake/picotls/dtrace-utils.cmake
+                <SOURCE_DIR>/cmake/dtrace-utils.cmake)
     FetchContent_MakeAvailable(picotls)
+    FetchContent_GetProperties(picotls)
+    if(picotls_POPULATED)
+        # Ensure patched helper persists even if the dependency was fetched
+        # before this workaround was introduced.
+        configure_file(
+            ${CMAKE_SOURCE_DIR}/cmake/picotls/dtrace-utils.cmake
+            ${picotls_SOURCE_DIR}/cmake/dtrace-utils.cmake
+            COPYONLY)
+    endif()
 endif()
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
