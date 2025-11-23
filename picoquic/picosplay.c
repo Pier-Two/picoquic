@@ -215,7 +215,13 @@ void picosplay_delete_hint(picosplay_tree_t *tree, picosplay_node_t *node) {
         tree->root = x;
         x->parent = NULL;
         x->left = node->left;
-        x->left->parent = x;
+        /* node->left can be NULL when the wake list/node bookkeeping was
+         * already cleared (e.g. double delete or out‑of‑order cleanup).
+         * Guard the parent assignment so we avoid dereferencing a nulled
+         * pointer and crashing the QUIC loop. */
+        if (x->left != NULL) {
+            x->left->parent = x;
+        }
     }
     tree->delete_node(tree, node);
     tree->size--;
@@ -334,4 +340,3 @@ static picosplay_node_t* rightmost(picosplay_node_t *node) {
     }
     return parent;
 }
-
