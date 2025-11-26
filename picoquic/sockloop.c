@@ -510,7 +510,8 @@ int picoquic_packet_loop_wait(picoquic_socket_ctx_t* s_ctx,
     DWORD ret_event;
     DWORD nb_events = 0;
     int wake_up_event_rank = -1;
-    DWORD dwDeltaT = (DWORD)((delta_t <= 0)? 0: (delta_t / 1000));
+    /* Use minimum 1ms delay to prevent CPU-spinning busy-wait */
+    DWORD dwDeltaT = (DWORD)((delta_t <= 0)? 1: (delta_t / 1000));
 
     for (int i = 0; i < 4 && i < nb_sockets; i++) {
         events[i] = s_ctx[i].overlap.hEvent;
@@ -613,8 +614,9 @@ int picoquic_packet_loop_select(picoquic_socket_ctx_t* s_ctx,
     }
 
     if (delta_t <= 0) {
+        /* Use minimum 10ms delay to prevent CPU-spinning busy-wait */
         tv.tv_sec = 0;
-        tv.tv_usec = 0;
+        tv.tv_usec = 10000;
     } else {
         if (delta_t > 10000000) {
             tv.tv_sec = (long)10;
