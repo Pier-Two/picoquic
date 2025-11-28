@@ -83,6 +83,12 @@ int picoquic_socket_set_pkt_info(SOCKET_TYPE sd, int af)
 #else
         /* The IP_PKTINFO structure is not defined on BSD */
         ret = setsockopt(sd, IPPROTO_IP, IP_RECVDSTADDR, (char*)&val, sizeof(int));
+#ifdef IP_RECVIF
+        /* On BSD/macOS, also enable IP_RECVIF to receive interface index */
+        if (ret == 0) {
+            ret = setsockopt(sd, IPPROTO_IP, IP_RECVIF, (char*)&val, sizeof(int));
+        }
+#endif
 #endif
     }
 #endif
@@ -441,12 +447,17 @@ void picoquic_socks_cmsg_parse(
                     ((struct sockaddr_in*)addr_dest)->sin_family = AF_INET;
                     ((struct sockaddr_in*)addr_dest)->sin_port = 0;
                     ((struct sockaddr_in*)addr_dest)->sin_addr.s_addr = pPktInfo->s_addr;
-
-                    if (dest_if != NULL) {
-                        *dest_if = 0;
-                    }
                 }
             }
+#ifdef IP_RECVIF
+            else if (cmsg->cmsg_type == IP_RECVIF) {
+                /* On BSD/macOS, IP_RECVIF provides the interface index via sockaddr_dl */
+                if (dest_if != NULL) {
+                    struct sockaddr_dl* sdl = (struct sockaddr_dl*)CMSG_DATA(cmsg);
+                    *dest_if = (int)sdl->sdl_index;
+                }
+            }
+#endif
 #endif
             else if ((cmsg->cmsg_type == IP_TOS
 #ifdef IP_RECVTOS

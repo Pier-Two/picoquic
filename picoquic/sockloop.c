@@ -867,8 +867,9 @@ void* picoquic_packet_loop_v3(void* v_ctx)
         }
         else if (bytes_recv == 0 && is_wake_up_event) {
             ret = loop_callback(quic, picoquic_packet_loop_wake_up, loop_callback_ctx, NULL);
+            /* Fall through to process packet sending after wake-up */
         }
-        else {
+        if (ret == 0 && bytes_recv >= 0) {
             uint64_t loop_time = current_time;
             size_t bytes_sent = 0;
             size_t nb_packets_sent = 0;

@@ -91,6 +91,9 @@
 #include <netinet/in.h>
 #include <netinet/udp.h>
 #include <sys/select.h>
+#ifdef __APPLE__
+#include <net/if_dl.h>  /* For sockaddr_dl used with IP_RECVIF on macOS */
+#endif
 
 #ifndef SOCKET_TYPE
 #define SOCKET_TYPE int
