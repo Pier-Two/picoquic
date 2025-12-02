@@ -3921,6 +3921,19 @@ int picoquic_handle_send_timers(picoquic_cnx_t* cnx, uint64_t current_time, uint
         ret = picoquic_check_cc_feedback_timer(cnx, next_wake_time, current_time);
     }
 
+    /* Schedule keep-alive wake time if enabled.
+     * This is critical for ensuring connections are woken up to send keep-alive pings
+     * even when there's no other activity scheduled. Without this, the packet loop
+     * won't poll the connection until the idle timeout, causing the peer to disconnect.
+     */
+    if (ret == 0 && cnx->keep_alive_interval != 0 && cnx->cnx_state == picoquic_state_ready) {
+        uint64_t keep_alive_time = cnx->latest_progress_time + cnx->keep_alive_interval;
+        if (keep_alive_time < *next_wake_time) {
+            *next_wake_time = keep_alive_time;
+            SET_LAST_WAKE(cnx->quic, PICOQUIC_SENDER);
+        }
+    }
+
     return ret;
 }
 
@@ -4259,7 +4272,7 @@ int picoquic_prepare_next_packet_ex(picoquic_quic_t* quic,
             *send_length = 0;
         }
         else {
-            ret = picoquic_prepare_packet_ex(cnx, current_time, send_buffer, send_buffer_max, send_length, p_addr_to, p_addr_from, 
+            ret = picoquic_prepare_packet_ex(cnx, current_time, send_buffer, send_buffer_max, send_length, p_addr_to, p_addr_from,
                 if_index, send_msg_size);
             if (log_cid != NULL) {
                 *log_cid = cnx->initial_cnxid;
