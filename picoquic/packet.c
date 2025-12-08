@@ -34,6 +34,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <inttypes.h>
 
 picoquic_packet_type_enum picoquic_parse_long_packet_type(uint8_t flags, int version_index)
 {
@@ -1974,6 +1976,7 @@ int picoquic_incoming_1rtt(
             path_x->first_tuple->if_index = if_index_to;
             cnx->is_1rtt_received = 1;
             picoquic_spin_function_table[cnx->spin_policy].spinbit_incoming(cnx, path_x, ph);
+
             /* Accept the incoming frames */
             ret = picoquic_decode_frames(cnx, cnx->path[path_id],
                 bytes + ph->offset, ph->payload_length, received_data,
@@ -2100,6 +2103,7 @@ int picoquic_incoming_segment(
     if (decrypted_data == NULL) {
         return -1;
     }
+
     /* Parse the header and decrypt the segment */
     ret = picoquic_parse_header_and_decrypt(quic, raw_bytes, length, packet_length, addr_from,
         current_time, decrypted_data, &ph, &cnx, consumed, &new_context_created);
@@ -2405,7 +2409,7 @@ int picoquic_incoming_packet_ex(
     while (consumed_index < packet_length) {
         size_t consumed = 0;
 
-        ret = picoquic_incoming_segment(quic, bytes + consumed_index, 
+        ret = picoquic_incoming_segment(quic, bytes + consumed_index,
             packet_length - consumed_index, packet_length,
             &consumed, addr_from, addr_to, if_index_to, received_ecn, current_time, current_time,
             &previous_destid, first_cnx);

@@ -24,6 +24,8 @@
 /* Decoding of the various frames, and application to context */
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <inttypes.h>
 #include "picoquic_internal.h"
 #include "tls_api.h"
 
@@ -1065,12 +1067,15 @@ static void picoquic_stream_data_chunk_callback(picoquic_cnx_t* cnx, picoquic_st
         call_back_needed = 1;
     }
 
-    if (call_back_needed && !stream->stop_sending_requested && !stream->is_discarded &&
-        cnx->callback_fn(cnx, stream->stream_id, (uint8_t *)bytes, data_length, fin_now,
-        cnx->callback_ctx, stream->app_stream_ctx) != 0) {
-        picoquic_log_app_message(cnx, "Data callback (%d, l=%zu) on stream %" PRIu64 " returns error 0x%x",
-            fin_now, data_length, stream->stream_id, PICOQUIC_TRANSPORT_INTERNAL_ERROR);
-        picoquic_connection_error(cnx, PICOQUIC_TRANSPORT_INTERNAL_ERROR, 0);
+    if (call_back_needed && !stream->stop_sending_requested && !stream->is_discarded) {
+        int cb_ret = cnx->callback_fn(cnx, stream->stream_id, (uint8_t *)bytes, data_length, fin_now,
+            cnx->callback_ctx, stream->app_stream_ctx);
+
+        if (cb_ret != 0) {
+            picoquic_log_app_message(cnx, "Data callback (%d, l=%zu) on stream %" PRIu64 " returns error 0x%x",
+                fin_now, data_length, stream->stream_id, PICOQUIC_TRANSPORT_INTERNAL_ERROR);
+            picoquic_connection_error(cnx, PICOQUIC_TRANSPORT_INTERNAL_ERROR, 0);
+        }
     }
 }
 
@@ -1250,6 +1255,7 @@ static int picoquic_stream_network_input(picoquic_cnx_t* cnx, uint64_t stream_id
 
                 /* Ugly cast, but the callback requires a non-const pointer */
                 picoquic_stream_data_chunk_callback(cnx, stream, (uint8_t *)bytes + delivered_index, (size_t)data_length);
+
                 /* Adjust the tree if needed */
                 picoquic_stream_data_callback(cnx, stream);
             }

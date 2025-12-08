@@ -163,6 +163,14 @@ typedef int (*picoquic_custom_thread_create_fn)(void** thread_id, picoquic_threa
 typedef void (*picoquic_custom_thread_setname_fn)(char const* thread_name);
 typedef void (*picoquic_custom_thread_delete_fn)(void** thread_id);
 
+/* Lock/unlock callbacks for thread synchronization.
+ * When set, the socket loop will call lock_fn before and unlock_fn after
+ * accessing picoquic's internal data structures. This is essential for
+ * thread-safety when other threads call picoquic functions like
+ * picoquic_add_to_stream which modify the internal wake tree. */
+typedef void (*picoquic_thread_lock_fn)(void* lock_ctx);
+typedef void (*picoquic_thread_unlock_fn)(void* lock_ctx);
+
 typedef struct st_picoquic_network_thread_ctx_t {
     picoquic_quic_t* quic;
     picoquic_packet_loop_param_t* param;
@@ -172,6 +180,10 @@ typedef struct st_picoquic_network_thread_ctx_t {
     char const* thread_name;
     void* pthread; /* Can be cast to picoquic_thread_t, or custom type if using non native threads */
     void* loop_callback_ctx;
+    /* Thread synchronization callbacks */
+    picoquic_thread_lock_fn lock_fn;
+    picoquic_thread_unlock_fn unlock_fn;
+    void* lock_ctx;
 #ifdef _WINDOWS
     HANDLE wake_up_event;
 #else

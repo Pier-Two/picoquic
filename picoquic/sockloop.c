@@ -717,6 +717,12 @@ void* picoquic_packet_loop_v3(void* v_ctx)
     picoquic_packet_loop_param_t* param = thread_ctx->param;
     picoquic_packet_loop_cb_fn loop_callback = thread_ctx->loop_callback;
     void* loop_callback_ctx = thread_ctx->loop_callback_ctx;
+    /* Thread synchronization - acquire lock before picoquic operations, release after */
+    picoquic_thread_lock_fn lock_fn = thread_ctx->lock_fn;
+    picoquic_thread_unlock_fn unlock_fn = thread_ctx->unlock_fn;
+    void* lock_ctx = thread_ctx->lock_ctx;
+#define QUIC_LOCK() do { if (lock_fn) lock_fn(lock_ctx); } while(0)
+#define QUIC_UNLOCK() do { if (unlock_fn) unlock_fn(lock_ctx); } while(0)
     int ret = 0;
     uint64_t current_time = picoquic_get_quic_time(quic);
     int64_t delay_max = 10000000;
@@ -799,6 +805,7 @@ void* picoquic_packet_loop_v3(void* v_ctx)
     /* Wait for packets */
     /* TODO: add stopping condition, was && (!just_once || !connection_done) */
     /* Actually, no, rely on the callback return code for that? */
+    static _Thread_local uint64_t loop_iter_count = 0;
     while (ret == 0 && !thread_ctx->thread_should_close) {
         int socket_rank = -1;
         int64_t delta_t = 0;
@@ -806,6 +813,7 @@ void* picoquic_packet_loop_v3(void* v_ctx)
         uint8_t* received_buffer;
         uint64_t previous_time;
 
+        loop_iter_count++;
         if_index_to = 0;
         /* The "loop immediate" condition is set when a packet has been
         * received and processed successfully. We call select again with
@@ -819,7 +827,9 @@ void* picoquic_packet_loop_v3(void* v_ctx)
         current_time = picoquic_current_time();
         if (!loop_immediate) {
             nb_loop_immediate = 1;
+            QUIC_LOCK();
             delta_t = picoquic_get_next_wake_delay(quic, current_time, delay_max);
+            QUIC_UNLOCK();
             if (options.do_time_check) {
                 packet_loop_time_check_arg_t time_check_arg;
                 time_check_arg.current_time = current_time;
@@ -842,6 +852,7 @@ void* picoquic_packet_loop_v3(void* v_ctx)
         previous_time = current_time;
         /* Initialize the dest addr family to UNSPEC yo handle systems that cannot set it. */
         addr_to.ss_family = AF_UNSPEC;
+
 #ifdef _WINDOWS
         bytes_recv = picoquic_packet_loop_wait(s_ctx, nb_sockets_available,
             &addr_from, &addr_to, &if_index_to, &received_ecn, &received_buffer,
@@ -855,6 +866,7 @@ void* picoquic_packet_loop_v3(void* v_ctx)
         received_buffer = buffer;
 #endif
         current_time = picoquic_current_time();
+
         if (options.do_system_call_duration && delta_t == 0 &&
             monitor_system_call_duration(&sc_duration, current_time, previous_time)) {
             ret = loop_callback(quic, picoquic_packet_loop_system_call_duration,
@@ -885,11 +897,13 @@ void* picoquic_packet_loop_v3(void* v_ctx)
                         recv_length = s_ctx[socket_rank].udp_coalesced_size;
                     }
                     /* Submit the packet to the client */
+                    QUIC_LOCK();
                     ret = picoquic_incoming_packet_ex(quic, s_ctx[socket_rank].recv_buffer + recv_bytes,
                         recv_length, (struct sockaddr*)&addr_from,
                         (struct sockaddr*)&addr_to,
                         s_ctx[socket_rank].dest_if,
                         s_ctx[socket_rank].received_ecn, &last_cnx, current_time);
+                    QUIC_UNLOCK();
                     recv_bytes += recv_length;
                 }
                 if (ret == 0) {
@@ -897,10 +911,12 @@ void* picoquic_packet_loop_v3(void* v_ctx)
                 }
 #else
                 /* Submit the packet to the server */
+                QUIC_LOCK();
                 ret = picoquic_incoming_packet_ex(quic, received_buffer,
                     (size_t)bytes_recv, (struct sockaddr*)&addr_from,
                     (struct sockaddr*)&addr_to, if_index_to, received_ecn,
                     &last_cnx, current_time);
+                QUIC_UNLOCK();
 #endif
 
 
@@ -947,10 +963,12 @@ void* picoquic_packet_loop_v3(void* v_ctx)
                 int sock_ret = 0;
                 int sock_err = 0;
 
+                QUIC_LOCK();
                 ret = picoquic_prepare_next_packet_ex(quic, loop_time,
                     send_buffer, send_buffer_size, &send_length,
                     &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
                     send_msg_ptr);
+                QUIC_UNLOCK();
 
                 if (ret == 0 && send_length > 0) {
                     /* If send_msg_size is defined, sendmsg may send more than one packet.

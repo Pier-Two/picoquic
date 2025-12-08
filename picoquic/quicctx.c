@@ -1,4 +1,6 @@
 #include "picoquic_internal.h"
+#include <stdio.h>
+#include <inttypes.h>
 
 /*
 * Author: Christian Huitema

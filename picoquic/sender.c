@@ -25,6 +25,8 @@
 #include "tls_api.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <inttypes.h>
 
 /*
  * Sending logic.
