@@ -849,12 +849,16 @@ int picoquic_parse_header_and_decrypt(
                     }
                     else {
                         ph->payload_length = (uint16_t)decoded_length;
-                    }
+                }
+
+                if (ret != 0 && *pcnx != NULL && (*pcnx)->client_mode &&
+                    (ph->ptype == picoquic_packet_initial || ph->ptype == picoquic_packet_handshake)) {
                 }
             }
-            else {
-                if (ph->ptype != picoquic_packet_version_negotiation &&
-                    ph->ptype != picoquic_packet_retry && ph->ptype != picoquic_packet_error) {
+        }
+        else {
+            if (ph->ptype != picoquic_packet_version_negotiation &&
+                ph->ptype != picoquic_packet_retry && ph->ptype != picoquic_packet_error) {
                     /* Redirect if proxy available -- function returns 0 if the packet was *not* intercepted */
                     if (quic->picomask_fns != NULL) {
                         ret = (quic->picomask_fns->picomask_redirect_fn)(quic->picomask_ctx,
@@ -1765,8 +1769,11 @@ int picoquic_incoming_client_handshake(
 {
     int ret = 0;
 
+    int was_validated = cnx->initial_validated;
     cnx->initial_validated = 1;
     cnx->initial_repeat_needed = 0;
+    if (!was_validated) {
+    }
 
     if (cnx->cnx_state < picoquic_state_server_almost_ready) {
         if (picoquic_compare_connection_id(&ph->srce_cnx_id, &cnx->path[0]->first_tuple->p_remote_cnxid->cnx_id) != 0) {

@@ -3299,6 +3299,7 @@ void picoquic_clear_stream(picoquic_stream_head_t* stream)
         free(next);
     }
     stream->send_queue = NULL;
+    stream->send_queue_last = NULL;
     if (stream->is_output_stream) {
         picoquic_remove_output_stream(stream->cnx, stream);
     }
@@ -4038,6 +4039,7 @@ picoquic_cnx_t* picoquic_create_cnx_internal(picoquic_quic_t* quic,
 
         for (int epoch = 0; epoch < PICOQUIC_NUMBER_OF_EPOCHS; epoch++) {
             cnx->tls_stream[epoch].send_queue = NULL;
+            cnx->tls_stream[epoch].send_queue_last = NULL;
         }
 
         /* Perform different initializations for clients and servers */
@@ -5358,4 +5360,3 @@ uint64_t picoquic_uniform_random(uint64_t rnd_max)
 {
     return picoquic_public_uniform_random(rnd_max);
 }
-

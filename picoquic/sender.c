@@ -27,6 +27,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
+#ifndef _WINDOWS
+#include <net/if.h>
+#endif
 
 /*
  * Sending logic.
@@ -261,20 +264,18 @@ int picoquic_add_to_stream_with_ctx(picoquic_cnx_t* cnx, uint64_t stream_id,
                 stream_data = NULL;
                 ret = -1;
             } else {
-                picoquic_stream_queue_node_t** pprevious = &stream->send_queue;
-                picoquic_stream_queue_node_t* next = stream->send_queue;
-
                 memcpy(stream_data->bytes, data, length);
                 stream_data->length = length;
                 stream_data->offset = 0;
                 stream_data->next_stream_data = NULL;
 
-                while (next != NULL) {
-                    pprevious = &next->next_stream_data;
-                    next = next->next_stream_data;
+                if (stream->send_queue == NULL) {
+                    stream->send_queue = stream_data;
+                    stream->send_queue_last = stream_data;
+                } else {
+                    stream->send_queue_last->next_stream_data = stream_data;
+                    stream->send_queue_last = stream_data;
                 }
-
-                *pprevious = stream_data;
             }
         }
 
@@ -2329,10 +2330,15 @@ int picoquic_prepare_packet_server_init(picoquic_cnx_t* cnx, picoquic_path_t * p
         }
     }
 
-    picoquic_finalize_and_protect_packet(cnx, packet,
-        ret, length, header_length, checksum_overhead,
-        send_length, send_buffer, send_buffer_max,
-        path_x, current_time);
+        if (length > 0 &&
+            (packet->ptype == picoquic_packet_initial || packet->ptype == picoquic_packet_handshake) &&
+            !is_pure_ack) {
+        }
+
+        picoquic_finalize_and_protect_packet(cnx, packet,
+            ret, length, header_length, checksum_overhead,
+            send_length, send_buffer, send_buffer_max,
+            path_x, current_time);
 
     /* Account for data sent during handshake */
     if (!cnx->initial_validated) {

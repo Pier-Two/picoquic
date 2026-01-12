@@ -21,6 +21,7 @@
 
 #include "picosocks.h"
 #include "picoquic_utils.h"
+#include <stdio.h>
 
 int picoquic_bind_to_port(SOCKET_TYPE fd, int af, int port)
 {
@@ -1041,6 +1042,8 @@ int picoquic_recvmsg(SOCKET_TYPE fd,
         addr_from->ss_family = 0;
     } else {
         picoquic_socks_cmsg_parse(&msg, addr_dest, dest_if, received_ecn, NULL);
+        if ((msg.msg_flags & MSG_TRUNC) != 0) {
+        }
     }
 
     return bytes_recv;

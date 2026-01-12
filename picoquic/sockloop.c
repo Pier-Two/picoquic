@@ -76,6 +76,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netdb.h>
+#include <net/if.h>
 #include <netinet/in.h>
 #include <sys/select.h>
 
@@ -122,6 +123,34 @@ static int udp_gso_available = 1;
 static int udp_gso_available = 0;
 #endif
 #endif
+
+/* Debug counters: track packets received per local UDP port. */
+#if defined(_WINDOWS)
+static volatile LONG64 picoquic_rx_port_counts[65536];
+static void picoquic_rx_count_inc(uint16_t port)
+{
+    InterlockedIncrement64(&picoquic_rx_port_counts[port]);
+}
+static uint64_t picoquic_rx_count_load(uint16_t port)
+{
+    return (uint64_t)InterlockedCompareExchange64(&picoquic_rx_port_counts[port], 0, 0);
+}
+#else
+static uint64_t picoquic_rx_port_counts[65536];
+static void picoquic_rx_count_inc(uint16_t port)
+{
+    __atomic_fetch_add(&picoquic_rx_port_counts[port], 1, __ATOMIC_RELAXED);
+}
+static uint64_t picoquic_rx_count_load(uint16_t port)
+{
+    return __atomic_load_n(&picoquic_rx_port_counts[port], __ATOMIC_RELAXED);
+}
+#endif
+
+uint64_t picoquic_rx_count_for_port(uint16_t port)
+{
+    return picoquic_rx_count_load(port);
+}
 
 #ifdef _WINDOWS
 /* Test support for UDP coalescing */
@@ -667,6 +696,7 @@ int picoquic_packet_loop_select(picoquic_socket_ctx_t* s_ctx,
                     else if (addr_dest->ss_family == AF_INET) {
                         ((struct sockaddr_in*)addr_dest)->sin_port = s_ctx[i].n_port;
                     }
+                    picoquic_rx_count_inc(s_ctx[i].port);
                     break;
                 }
             }
@@ -1046,6 +1076,8 @@ void* picoquic_packet_loop_v3(void* v_ctx)
                                 (struct sockaddr*)&peer_addr, (struct sockaddr*)&local_addr, if_index,
                                 (const char*)send_buffer, (int)send_length, (int)send_msg_size, &sock_err);
                         }
+                    }
+                    if (sock_ret > 0) {
                     }
                     if (sock_ret <= 0) {
                         /* TODO: add a test in which the socket fails. */

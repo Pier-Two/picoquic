@@ -322,8 +322,10 @@ void picoquic_packet_loop_close_socket(picoquic_socket_ctx_t* s_ctx);
 int picoquic_packet_loop_open_sockets(uint16_t local_port, int local_af, int socket_buffer_size, int extra_socket_required,
     int do_not_use_gso, picoquic_socket_ctx_t* s_ctx);
 
+/* Debug helper: returns number of packets received for a given local UDP port. */
+uint64_t picoquic_rx_count_for_port(uint16_t port);
+
 #ifdef __cplusplus
 }
 #endif
 #endif /* PICOQUIC_PACKET_LOOP_H */
-
